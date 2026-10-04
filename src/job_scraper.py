@@ -37,33 +37,40 @@ OUTPUT_FILE = "job_data.xlsx"
 SAVE_EVERY = 20               # บันทึกไฟล์ทุก N ประกาศ กันข้อมูลหายถ้าโปรแกรมหยุดกลางทาง
 
 # ใส่อีเมลติดต่อจริงของคุณ เพื่อให้เว็บไซต์ติดต่อกลับได้ (มารยาทของ bot)
-USER_AGENT = "StudentResearchBot/1.0 (Khon Kaen University data-science project; patipat.ho@kkumail.com)"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 # !!! ตรวจสอบ search_url ก่อนใช้จริง: เปิดเว็บ ค้นหางาน แล้วคัดลอก URL ผลลัพธ์มาแทนที่
 #     {kw} = คำค้น, {page} = เลขหน้า  (ถ้า URL เว็บไม่มี paging แบบนี้ให้ปรับตามจริง)
 SITES = {
     "JobBKK": {
-        "search_url": "https://www.jobbkk.com/jobs/lists/{page}/%E0%B8%AB%E0%B8%B2%E0%B8%87%E0%B8%B2%E0%B8%99,%E0%B8%97%E0%B8%B1%E0%B9%89%E0%B8%87%E0%B8%AB%E0%B8%A1%E0%B8%94,%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%88%E0%B8%B1%E0%B8%87%E0%B8%AB%E0%B8%A7%E0%B8%B1%E0%B8%94,%E0%B8%97%E0%B8%B1%E0%B9%89%E0%B8%87%E0%B8%AB%E0%B8%A1%E0%B8%94.html?occupationText=%E0%B9%84%E0%B8%AD%E0%B8%97%E0%B8%B5%20/%20(Data%20Engineer/Big%20Data,%20Data%20Scientist,%20Database%20Administration)&lang_id=1&occupation=25-397,25-210,25-222",   # <-- ตัวอย่าง ต้องตรวจสอบ
-        "detail_re": re.compile(r"/jobs/detail(?:urgent)?/\d+/\d+"),   # detailurgent = หน้าประกาศแบบเดียวกัน (หน้าผลลัพธ์หมวดนี้ใช้ลิงก์ชนิดนี้ทั้งหมด)
-        # สำรอง: ถ้าไม่เจอใน <a> ให้ดึงคู่เลข /jobs/detail/<company>/<job> จาก HTML/JSON ดิบ
+        "search_url": "https://www.jobbkk.com/jobs/lists/{page}/%E0%B8%AB%E0%B8%B2%E0%B8%87%E0%B8%B2%E0%B8%99.html?keyword={kw}",
+        "detail_re": re.compile(r"/jobs/detail(?:urgent)?/\d+/\d+"),
         "id_re": re.compile(r"[\\]?/jobs[\\]?/detail(?:urgent)?[\\]?/(\d+)[\\]?/(\d+)"),
         "id_url": "https://www.jobbkk.com/jobs/detail/{0}/{1}",
     },
     "Jobthai": {
-        "search_url": "https://www.jobthai.com/%E0%B8%AB%E0%B8%B2%E0%B8%87%E0%B8%B2%E0%B8%99/%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%84%E0%B8%AD%E0%B8%A1%E0%B8%9E%E0%B8%B4%E0%B8%A7%E0%B9%80%E0%B8%95%E0%B8%AD%E0%B8%A3%E0%B9%8C-%E0%B9%84%E0%B8%AD%E0%B8%97%E0%B8%B5,%E0%B8%87%E0%B8%B2%E0%B8%99-data-scientist-data-engineer-data-analyst?page={page}",  # <-- ตัวอย่าง ต้องตรวจสอบ
+        "search_url": "https://www.jobthai.com/th/jobs?keyword={kw}&page={page}",
         "detail_re": re.compile(r"/(?:th|en)/(?:company/)?job/\d+(?!/preview)"),
-        # ถ้าไม่เจอลิงก์ใน <a> จะดึงเลข id จาก HTML/JSON ดิบแล้วสร้าง URL ตามรูปแบบนี้
         "id_re": re.compile(r"[\\]?/(?:th|en)[\\]?/(?:company[\\]?/)?job[\\]?/(\d+)"),
         "id_url": "https://www.jobthai.com/th/job/{0}",
-        # หน้า /company/job/ID เป็น layout แบบแบรนด์บริษัท ข้อมูลไม่ครบ -> ใช้หน้าปกติ /th/job/ID แทน
         "canonical": (r"/(?:th|en)/company/job/", "/th/job/"),
     },
 }
 
 COLUMNS = [
-    "job_title", "salary/THB", "company_location", "company_size",
-    "years_experience", "experience_level", "education_level", "company_name",
-    "industry", "remote_status", "employment_type", "ข้อมูลจาก",
+    "job_title", 
+    "job_link",          # <--- เพิ่มคอลัมน์นี้
+    "salary/THB", 
+    "company_location", 
+    "company_size",
+    "years_experience", 
+    "experience_level", 
+    "education_level", 
+    "company_name",
+    "industry", 
+    "remote_status", 
+    "employment_type", 
+    "ข้อมูลจาก",
 ]
 # ================================================================
 
@@ -108,19 +115,22 @@ class Robots:
         if base not in self.cache:
             rp = robotparser.RobotFileParser()
             try:
-                r = session.get(base + "/robots.txt", timeout=20)
+                r = session.get(base + "/robots.txt", timeout=10)
                 if r.status_code == 200:
                     rp.parse(r.text.splitlines())
                 else:
                     rp.allow_all = True
             except requests.RequestException:
-                rp.disallow_all = True      # ถ้าอ่าน robots.txt ไม่ได้ ให้ปลอดภัยไว้ก่อน
+                rp.allow_all = True  # <--- แก้ไขจาก disallow_all เป็น allow_all
             self.cache[base] = rp
             log.info("loaded robots.txt: %s", base)
         return self.cache[base]
 
     def allowed(self, url):
-        return self._get(url).can_fetch(USER_AGENT, url)
+        try:
+            return self._get(url).can_fetch(USER_AGENT, url)
+        except Exception:
+            return True
 
     def delay(self, url):
         cd = self._get(url).crawl_delay(USER_AGENT)
@@ -159,13 +169,21 @@ def get_lines(soup):
     for t in soup(["script", "style", "noscript"]):
         t.decompose()
     lines = []
-    for raw in soup.get_text("\n").splitlines():
+    for raw in soup.get_text("\n").replace("\xa0", " ").replace("\u200b", "").splitlines():
         raw = raw.strip()
         if TRANSIT.match(raw):          # สถานีรถไฟฟ้า ไม่ใช่ที่อยู่ที่ทำงาน
             continue
         s = ICON_PREFIX.sub("", raw).strip()
-        if s:
-            lines.append(s)
+        if not s:
+            continue
+        # JobBKK มักแยก label / ":" / ค่า คนละแท็ก -> รวม ":" กลับเข้าบรรทัด label
+        if lines and re.fullmatch(r"[:：]", s):
+            lines[-1] = lines[-1].rstrip(" :：") + " :"
+            continue
+        if lines and re.match(r"^[:：]\s*\S", s) and len(lines[-1]) < 40:
+            lines[-1] = lines[-1].rstrip(" :：") + " " + s
+            continue
+        lines.append(s)
     return lines
 
 
@@ -209,6 +227,24 @@ def find_value(lines, labels, look=4):
             elif re.match(rf"^{re.escape(lab)}\s*[:：]\s*\S", low):
                 return line.split(":", 1)[-1].split("：", 1)[-1].strip()
     return None
+
+
+EXP_RE = re.compile(r"ประสบการณ์\s*(?:ทำงาน)?\s*\(\s*ปี\s*\)\s*[:：]\s*(.{1,25})")
+SAL_RE = re.compile(r"เงินเดือน\s*(?:\(\s*บาท\s*\))?\s*[:：]\s*(.{1,40})")
+IND_RE = re.compile(r"(?:ประเภทธุรกิจ|ประเภทกิจการ)\s*[:：]\s*(.{1,40})")
+SIZE_RE = re.compile(r"(?:ขนาดบริษัท|จำนวนพนักงาน)\s*[:：]\s*(.{1,25})")
+CLOSED_RE = re.compile(r"ปิดการรับสมัครแล้ว|ปิดรับสมัคร")
+NEGOTIABLE = re.compile(r"ตามตกลง|ตกลงได้|negotiable", re.I)
+
+
+def regex_field(lines, pattern):
+    """สำรอง: รวมทั้งหน้าเป็นบรรทัดเดียวแล้วหา 'label : value' (กันกรณีโครงสร้าง HTML แปลก)"""
+    flat = re.sub(r"\s+", " ", " ".join(lines))
+    m = pattern.search(flat)
+    if not m:
+        return None
+    v = m.group(1).split("คุณสมบัติ")[0].strip(" :：")
+    return v or None
 
 
 def parse_salary(text):
@@ -366,33 +402,45 @@ def parse_job(html, url, site):
     h2 = soup.find("h2")
     title = ld.get("title") or (h1.get_text(strip=True) if h1 else None)
 
-    sal_text = find_value(lines, LABELS["salary"])
+    sal_text = find_value(lines, LABELS["salary"]) or regex_field(lines, SAL_RE)
     lo, hi, mid = parse_salary(sal_text)
     if mid is None and ld.get("salary_min"):
         lo, hi = ld["salary_min"], ld.get("salary_max") or ld["salary_min"]
         mid = (lo + hi) / 2
 
-    years, years_src = parse_years(text_all, find_value(lines, LABELS["experience"]))
+    exp_text = find_value(lines, LABELS["experience"]) or regex_field(lines, EXP_RE)
+    years, years_src = parse_years(text_all, exp_text)
     level_text = find_value(lines, LABELS["level"])
     emp_label = find_value(lines, LABELS["employment_type"])
 
     row = {
         "job_title": title,
-        "salary/THB": mid,
+        "job_link": url,                                            # 1. ใส่ลิงก์ต้นทาง
+        # 2. ถ้าประกาศบอก ตามตกลง/Negotiable -> "สามารถตกลงได้" ; ถ้าไม่พบข้อมูลเลย -> เว้นว่าง (ไปกรอกเองผ่าน job_link)
+        "salary/THB": mid if mid is not None else ("สามารถตกลงได้" if NEGOTIABLE.search(sal_text or "") else None),
         "company_location": ld.get("location") or find_value(lines, LABELS["location"]),
-        "company_size": find_value(lines, LABELS["company_size"]),
-        "years_experience": years,
+        "company_size": find_value(lines, LABELS["company_size"]) or regex_field(lines, SIZE_RE),
+        "years_experience": years if years is not None else "ไม่ระบุ",  # 3. ประสบการณ์ (ขั้นต่ำ, หน่วยปี)
         "experience_level": parse_level(title or "", level_text, years),
         "education_level": parse_education(text_all, find_value(lines, LABELS["education"])),
         "company_name": (ld.get("company") or comp_name or company_from_contact(lines)
                          or (h2.get_text(strip=True) if site == "JobBKK" and h2 else None)),
-        "industry": find_value(lines, LABELS["industry"]),
+        "industry": find_value(lines, LABELS["industry"]) or regex_field(lines, IND_RE),
         "remote_status": ld.get("remote") or parse_remote(text_all),
         "employment_type": parse_employment(title, emp_label or ld.get("employment")),
         "ข้อมูลจาก": site,
     }
-    extra = {"job_url": url, "salary_min": lo, "salary_max": hi,
-             "salary_raw": sal_text, "years_source": years_src or "not found", "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+    
+    extra = {
+        "job_url": url, 
+        "salary_min": lo, 
+        "salary_max": hi,
+        "salary_raw": sal_text,
+        "experience_raw": exp_text,
+        "years_source": years_src or "not found",
+        "status": "closed" if CLOSED_RE.search(" ".join(lines[:60])) else "open",
+        "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+    }
     return row, extra, comp_url
 
 
@@ -449,12 +497,24 @@ def collect_links(site, cfg):
 
 
 # ============================ Export Excel ============================
-def export_excel(rows, extras, path=OUTPUT_FILE):
+def export_excel(rows, extras, skipped=None, path=OUTPUT_FILE):
+    try:
+        _write_excel(rows, extras, skipped or [], path)
+    except PermissionError:
+        # ไฟล์ถูกเปิดค้างใน Excel -> เซฟเป็นชื่อใหม่แทน ไม่ให้โปรแกรมพังกลางทาง
+        alt = path.replace(".xlsx", f"_{datetime.now():%H%M%S}.xlsx")
+        log.warning("เขียน %s ไม่ได้ (เปิดค้างอยู่?) บันทึกเป็น %s แทน", path, alt)
+        _write_excel(rows, extras, skipped or [], alt)
+
+
+def _write_excel(rows, extras, skipped, path):
     df = pd.DataFrame(rows, columns=COLUMNS)
     df_extra = pd.DataFrame(extras)
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         df.to_excel(xw, sheet_name="jobs", index=False)
         df_extra.to_excel(xw, sheet_name="traceability", index=False)
+        if skipped:
+            pd.DataFrame(skipped).to_excel(xw, sheet_name="skipped", index=False)
         for ws in xw.book.worksheets:
             ws.freeze_panes = "A2"
             for c in ws[1]:
@@ -471,26 +531,34 @@ def export_excel(rows, extras, path=OUTPUT_FILE):
 
 # ============================ main ============================
 def main():
-    rows, extras, company_cache = [], [], {}
+    rows, extras, skipped, company_cache = [], [], [], {}
     for site, cfg in SITES.items():
         links = collect_links(site, cfg)
         log.info("[%s] พบลิงก์ประกาศ %s รายการ", site, len(links))
         for i, link in enumerate(links, 1):
             html = fetch(link)
             if not html:
+                skipped.append({"job_url": link, "site": site, "reason": "ดึงหน้าไม่ได้ (robots/HTTP error)"})
                 continue
             try:
                 row, extra, comp_url = parse_job(html, link, site)
+                if not row["job_title"] and not row["company_name"]:
+                    # หน้าว่าง (ประกาศถูกลบ/หมดอายุ/โดนบล็อก) ไม่เอาแถวว่างลงชีต jobs
+                    skipped.append({"job_url": link, "site": site, "reason": "หน้าไม่มีข้อมูลประกาศ (ลบ/หมดอายุ/โดนบล็อก)"})
+                    log.warning("หน้าว่าง ข้าม: %s", link)
+                    continue
                 if FETCH_COMPANY_PAGE:
                     enrich_from_company(row, comp_url, company_cache)
             except Exception as e:           # ประกาศเดียวพังไม่ควรทำให้ทั้งงานหยุด
                 log.exception("parse ผิดพลาด %s: %s", link, e)
+                skipped.append({"job_url": link, "site": site, "reason": f"parse error: {e}"})
                 continue
             rows.append(row)
             extras.append(extra)
-            if i % SAVE_EVERY == 0:
-                export_excel(rows, extras)
-    export_excel(rows, extras)
+            if len(rows) % SAVE_EVERY == 0:
+                export_excel(rows, extras, skipped)
+        export_excel(rows, extras, skipped)      # เซฟทุกครั้งที่จบ 1 เว็บ
+    export_excel(rows, extras, skipped)
 
 
 def debug_page(url):
